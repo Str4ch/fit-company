@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Table, Text
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Table, Text, Date, JSON, ARRAY
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -49,3 +49,14 @@ class ExerciseModel(Base):
     def __repr__(self):
         return f"<Exercise(id={self.id}, name='{self.name}', difficulty={self.difficulty})>"
 
+class WodForUser(Base):
+    __tablename__ = "wod_for_user"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String(100), nullable=False)
+    wod_response = Column(JSON)
+    generated_at = Column(Date, nullable=False) 
+
+    def __repr__(self):
+        return f"<WodForUser(id={self.id}, user_email='{self.user_email}, wod_response={self.wod_response}...')>"
+    

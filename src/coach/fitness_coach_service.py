@@ -1,8 +1,13 @@
+import datetime
+import json
 import os
+from queue import Full
 from typing import List, Tuple
 
 import requests
-from .models_db import ExerciseModel, MuscleGroupModel, exercise_muscle_groups
+
+from .models_dto import MuscleGroupImpact, WodExerciseSchema, WodResponseSchema
+from .models_db import ExerciseModel, MuscleGroupModel, exercise_muscle_groups, WodForUser
 from .database import db_session
 import random
 from time import time
@@ -102,3 +107,72 @@ def request_wod(user_email: str) -> List[Tuple[ExerciseModel, List[Tuple[MuscleG
         return result
     finally:
         db.close()
+
+def create_wod(user_email: str) -> List[Tuple[ExerciseModel, List[Tuple[MuscleGroupModel, bool]]]]:
+    if not user_email:
+        return Full
+        
+    try:
+        # Fetch user last workout exercises from monolith
+        # app.logger.debug(f"History exercises: {history_exercises}")
+        exercises_with_muscles = request_wod(user_email)
+        wod_exercises = []
+        for exercise, muscle_groups in exercises_with_muscles:
+            # Create muscle group impact objects
+            muscle_impacts = [
+                MuscleGroupImpact(
+                    id=mg.id,
+                    name=mg.name,
+                    body_part=mg.body_part,
+                    is_primary=is_primary,
+                    # Higher intensity for primary muscle groups
+                    intensity=calculate_intensity(exercise.difficulty) * (1.2 if is_primary else 0.8)
+                )
+                for mg, is_primary in muscle_groups
+            ]
+            
+            # Create exercise object
+            wod_exercise = WodExerciseSchema(
+                id=exercise.id,
+                name=exercise.name,
+                description=exercise.description,
+                difficulty=exercise.difficulty,
+                muscle_groups=muscle_impacts,
+                suggested_weight=random.uniform(5.0, 50.0),  # Random weight between 5 and 50 kg
+                suggested_reps=random.randint(8, 15)  # Random reps between 8 and 15
+            )
+            wod_exercises.append(wod_exercise)
+        
+        response = WodResponseSchema(
+            exercises=wod_exercises,
+            generated_at=datetime.datetime.now(datetime.UTC).isoformat()
+        )
+        
+        return response
+
+        
+    except requests.RequestException as e:
+        return {"error": f"Failed to fetch user history: {str(e)}"}, 500
+    
+def recieve_wods(user_email: str) -> WodResponseSchema:
+    """
+    Receive WODs from RabbitMQ for a specific user.
+    """
+    if not user_email:
+        return Full
+
+    try:
+        db = db_session()
+        users_wods_today = db.query(WodForUser).filter_by(user_email=user_email, generated_at=datetime.datetime.now().date()).all()
+        if not users_wods_today:
+            return create_wod(user_email)
+        exercises_today = [json.loads(wod) for wod in users_wods_today[0].wod_response]
+        response = WodResponseSchema(
+            exercises=exercises_today,
+            generated_at=users_wods_today[0].generated_at
+        )
+        return response
+    
+    except Exception as e:
+        print(f"Error receiving WODs: {str(e)}")
+        return {"error": str(e)}, 500

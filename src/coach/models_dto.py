@@ -49,3 +49,9 @@ class WodExerciseSchema(BaseModel):
 class WodResponseSchema(BaseModel):
     exercises: List[WodExerciseSchema]
     generated_at: datetime
+
+class WodForUser(BaseModel):
+    user_email: str
+    wod_response: List[WodExerciseSchema]
+    generated_at: datetime
+    
