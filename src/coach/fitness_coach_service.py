@@ -147,7 +147,13 @@ def create_wod(user_email: str) -> List[Tuple[ExerciseModel, List[Tuple[MuscleGr
             exercises=wod_exercises,
             generated_at=datetime.datetime.now(datetime.UTC).isoformat()
         )
-        
+
+        random_failure = random.random()
+        if random_failure < 0.2:  
+            return WodResponseSchema(
+                exercises=[],
+                generated_at=datetime.datetime.now(datetime.UTC).isoformat()
+            )
         return response
 
         

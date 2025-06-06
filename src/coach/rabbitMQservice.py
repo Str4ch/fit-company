@@ -11,6 +11,7 @@ class RabbitMQService:
         self.connection = None
         self.channel = None
         self.queue_name = "createWodQueue"
+        self.MAX_RETRIES = 3
         self.connect()
 
     def connect(self):
@@ -63,9 +64,31 @@ class RabbitMQService:
             print("Waiting for messages in RabbitMQ...")
             def callback(ch, method, properties, body):
                 bd = json.loads(body.decode())
+                headers = properties.headers or {}
+                attempts = headers.get('x-attempts', 0) | 0
+
                 exercises = create_wod(bd["email"])
-                for exercise_model in exercises.exercises:
-                    print(f"Exercise: {exercise_model}")
+
+                if not exercises or not exercises.exercises:
+                    if attempts < self.MAX_RETRIES:
+                        ch.basic_publish(
+                            exchange='',
+                            routing_key=self.queue_name,
+                            body=body,
+                            properties=pika.BasicProperties(
+                                headers={'x-attempts': attempts + 1},
+                                delivery_mode=2
+                            )
+                        )
+                    else:
+                        ch.basic_publish(
+                            exchange='',
+                            routing_key=f"{self.queue_name}-dead",
+                            body=body,
+                            properties=pika.BasicProperties(delivery_mode=2)
+                        )
+                    return
+
                 wd_response =[
                     exercise_model.model_dump_json()
                     for exercise_model in  exercises.exercises
@@ -98,3 +121,39 @@ class RabbitMQService:
 
 # Create a singleton instance
 rabbitmq_service = RabbitMQService() 
+
+'''
+MAX_RETRIES = 3
+
+def callback(ch, method, properties, body):
+    headers = properties.headers or {}
+    attempts = headers.get('x-attempts', 0)
+
+    user_id = body.decode()
+    print(f"[x] Processing WOD for user {user_id}, attempt {attempts + 1}")
+
+    if random.random() < 0.6:  # increase failure rate
+        print("[!] Simulated failure")
+        if attempts < MAX_RETRIES:
+            ch.basic_publish(
+                exchange='',
+                routing_key='wod_retry',
+                body=body,
+                properties=pika.BasicProperties(
+                    headers={'x-attempts': attempts + 1},
+                    delivery_mode=2
+                )
+            )
+        else:
+            print("[✘] Moved to DLQ")
+            ch.basic_publish(
+                exchange='',
+                routing_key='wod_dlq',
+                body=body,
+                properties=pika.BasicProperties(delivery_mode=2)
+            )
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+    else:
+        print("[✓] Success")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+'''
