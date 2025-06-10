@@ -154,6 +154,7 @@ def create_wod(user_email: str) -> List[Tuple[ExerciseModel, List[Tuple[MuscleGr
                 exercises=[],
                 generated_at=datetime.datetime.now(datetime.UTC).isoformat()
             )
+
         return response
 
         
@@ -171,7 +172,16 @@ def recieve_wods(user_email: str) -> WodResponseSchema:
         db = db_session()
         users_wods_today = db.query(WodForUser).filter_by(user_email=user_email, generated_at=datetime.datetime.now().date()).all()
         if not users_wods_today:
-            return create_wod(user_email)
+            wods = create_wod(user_email)
+            db.add(
+                    WodForUser(
+                        user_email,
+                        wod_response=[ exercise_model.model_dump_json() for exercise_model in  wods.exercises],
+                        generated_at=wods.generated_at
+                    )
+            )
+            db.commit()
+            return wods
         exercises_today = [json.loads(wod) for wod in users_wods_today[0].wod_response]
         response = WodResponseSchema(
             exercises=exercises_today,

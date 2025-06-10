@@ -89,7 +89,7 @@ class RabbitMQService:
                         )
                     return
 
-                wd_response =[
+                wd_response = [
                     exercise_model.model_dump_json()
                     for exercise_model in  exercises.exercises
                 ]
@@ -121,39 +121,3 @@ class RabbitMQService:
 
 # Create a singleton instance
 rabbitmq_service = RabbitMQService() 
-
-'''
-MAX_RETRIES = 3
-
-def callback(ch, method, properties, body):
-    headers = properties.headers or {}
-    attempts = headers.get('x-attempts', 0)
-
-    user_id = body.decode()
-    print(f"[x] Processing WOD for user {user_id}, attempt {attempts + 1}")
-
-    if random.random() < 0.6:  # increase failure rate
-        print("[!] Simulated failure")
-        if attempts < MAX_RETRIES:
-            ch.basic_publish(
-                exchange='',
-                routing_key='wod_retry',
-                body=body,
-                properties=pika.BasicProperties(
-                    headers={'x-attempts': attempts + 1},
-                    delivery_mode=2
-                )
-            )
-        else:
-            print("[✘] Moved to DLQ")
-            ch.basic_publish(
-                exchange='',
-                routing_key='wod_dlq',
-                body=body,
-                properties=pika.BasicProperties(delivery_mode=2)
-            )
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-    else:
-        print("[✓] Success")
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-'''
