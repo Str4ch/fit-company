@@ -4,6 +4,7 @@ import os
 from queue import Full
 from typing import List, Tuple
 
+from flask import jsonify
 import requests
 
 from .models_dto import MuscleGroupImpact, WodExerciseSchema, WodResponseSchema
@@ -142,19 +143,18 @@ def create_wod(user_email: str) -> List[Tuple[ExerciseModel, List[Tuple[MuscleGr
                 suggested_reps=random.randint(8, 15)  # Random reps between 8 and 15
             )
             wod_exercises.append(wod_exercise)
-        
+
         response = WodResponseSchema(
             exercises=wod_exercises,
             generated_at=datetime.datetime.now(datetime.UTC).isoformat()
         )
 
         random_failure = random.random()
-        if random_failure < 0.2:  
+        if random_failure < 0.2: 
             return WodResponseSchema(
                 exercises=[],
                 generated_at=datetime.datetime.now(datetime.UTC).isoformat()
             )
-
         return response
 
         
@@ -175,7 +175,7 @@ def recieve_wods(user_email: str) -> WodResponseSchema:
             wods = create_wod(user_email)
             db.add(
                     WodForUser(
-                        user_email,
+                        user_email=user_email,
                         wod_response=[ exercise_model.model_dump_json() for exercise_model in  wods.exercises],
                         generated_at=wods.generated_at
                     )
